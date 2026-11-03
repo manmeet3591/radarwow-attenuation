@@ -75,7 +75,8 @@ def apply(ds, pia, cfg, alpha, name, ah=None, extra=None):
     out["PIA"] = (dims, pia.astype("float32"), {"units": "dB", "long_name": f"two-way path-integrated attenuation ({name})"})
     out["PIDA"] = (dims, pida.astype("float32"), {"units": "dB", "long_name": "two-way path-integrated differential attenuation"})
     if ah is not None:
-        out["AH"] = (dims, ah.astype("float32"), {"units": "dB/km", "long_name": "one-way specific attenuation"})
+        out["AH"] = (dims, ah.astype("float32"), {"units": "dB/km", "long_name": "one-way specific attenuation",
+                                                  "comment": "NaN off the rain path or where delta PHIDP < min_dphi"})
     for k, v in (extra or {}).items():
         out[k] = v
     return out

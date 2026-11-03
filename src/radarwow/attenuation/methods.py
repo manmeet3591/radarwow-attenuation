@@ -16,21 +16,29 @@ from __future__ import annotations
 import numpy as np
 
 from radarwow.core import Algorithm, Reference, register
+from radarwow.core.noise import signal_mask
 
 from .common import apply, gate_km, hold_after, path_dphi, phidp_rec, rain_path
 
 DIMS = ("azimuth", "range")
 
 
-def zphi(z_dbz, phi, valid, seg, i0, i1, alpha, b, dr_km, min_dphi=2.0):
+def zphi(z_dbz, phi, valid, seg, i0, i1, alpha, b, dr_km, min_dphi=2.0, prof=None, z_cap=53.0):
     """ZPHI for every ray; ``alpha`` scalar or per ray.
 
     Returns (A_H one-way dB/km, two-way PIA dB, delta PHIDP). PIA uses the closed form of
     2 * integral(A_H), which is exact for the discrete Z profile (summing A_H gate by gate biases it):
         PIA(r) = (10 / b) log10[ (1 + C) I(r0) / (I(r0) + C I(r)) ],   so PIA(r1) = alpha dPHI.
     I(r, r1) uses the midpoint rule (half of gate r counted).
+
+    ``prof`` selects the gates whose Z shapes the profile (default: the rain gates ``valid``). Pass every
+    signal gate on the path: if hail gates (low rhoHV) were left out, their share of dPHI would be dumped
+    on the few remaining weak gates. Z is capped at ``z_cap`` dBZ (the WSR-88D hail cap, Fulton et al.
+    1998) so hail cores do not take the whole total. A_H is returned only at rain gates (``valid``).
     """
-    zb = np.where(valid & seg, 10.0 ** (0.1 * b * np.nan_to_num(z_dbz, nan=-50.0)), 0.0)
+    prof = valid if prof is None else prof
+    zc = np.minimum(np.nan_to_num(z_dbz, nan=-50.0), z_cap)
+    zb = np.where(prof & seg, 10.0 ** (0.1 * b * zc), 0.0)
     i_r = 0.46 * b * dr_km * (np.flip(np.cumsum(np.flip(zb, 1), 1), 1) - 0.5 * zb)  # I(r, r1)
     rows = np.arange(zb.shape[0])
     i_r0 = i_r[rows, i0] + 0.46 * b * dr_km * 0.5 * zb[rows, i0]  # include the whole first gate
@@ -42,9 +50,13 @@ def zphi(z_dbz, phi, valid, seg, i0, i1, alpha, b, dr_km, min_dphi=2.0):
         den = i_r0[:, None] + c[:, None] * i_r
         a = np.where(ok, zb * c[:, None] / den, 0.0)
         pia = np.where(ok, (10.0 / b) * np.log10((1.0 + c[:, None]) * i_r0[:, None] / den), 0.0)
-    a = np.where(np.isfinite(a), a, 0.0)
+    a = np.where(ok & valid & np.isfinite(a), a, np.nan)  # A_H only at rain gates on paths with enough dPHI
     pia = hold_after(np.maximum.accumulate(np.where(np.isfinite(pia), pia, 0.0), axis=1), i1)
     return a, pia, dphi
+
+
+def _prof(ds):
+    return signal_mask(ds) & np.isfinite(ds["DBZH"].values)
 
 
 _TESTUD = Reference("J. Testud, E. Le Bouar, E. Obligis, M. Ali-Mehenni", 2000,
@@ -89,7 +101,7 @@ class Testud2000ZPHI(Algorithm):
         valid, seg, i0, i1 = rain_path(ds, cfg)
         phi = phidp_rec(ds, cfg)
         dr = gate_km(ds)
-        a, pia, _ = zphi(ds["DBZH"].values, phi, valid, seg, i0, i1, cfg["zphi_alpha"], cfg["zphi_b"], dr, self.params["min_dphi"])
+        a, pia, _ = zphi(ds["DBZH"].values, phi, valid, seg, i0, i1, cfg["zphi_alpha"], cfg["zphi_b"], dr, self.params["min_dphi"], prof=_prof(ds))
         return apply(ds, pia, cfg, cfg["zphi_alpha"], "ZPHI", ah=a)
 
 
@@ -119,19 +131,19 @@ class Bringi2001SelfConsistent(Algorithm):
         alphas = np.linspace(lo, hi, self.params["n_alpha"])
         err = np.empty((alphas.size, phi.shape[0]))
         for k, al in enumerate(alphas):
-            _, pia, dphi = zphi(z, phi, valid, seg, i0, i1, al, cfg["zphi_b"], dr, self.params["min_dphi"])
+            _, pia, dphi = zphi(z, phi, valid, seg, i0, i1, al, cfg["zphi_b"], dr, self.params["min_dphi"], prof=_prof(ds))
             phi_c = pia / al
             err[k] = np.sum(np.abs(phi_c - rel) * (valid & seg), axis=1)
         kbest = np.argmin(err, axis=0)
         best = alphas[kbest]
-        _, pia_d, _ = zphi(z, phi, valid, seg, i0, i1, cfg["zphi_alpha"], cfg["zphi_b"], dr, self.params["min_dphi"])
+        _, pia_d, _ = zphi(z, phi, valid, seg, i0, i1, cfg["zphi_alpha"], cfg["zphi_b"], dr, self.params["min_dphi"], prof=_prof(ds))
         err_d = np.sum(np.abs(pia_d / cfg["zphi_alpha"] - rel) * (valid & seg), axis=1)
         rows_ = np.arange(err.shape[1])
         gain = 1.0 - err[kbest, rows_] / np.maximum(err_d, 1e-9)
         fitted = ((cfg["zphi_alpha"] * dphi >= self.params["min_pia_fit"]) & (kbest > 0) & (kbest < alphas.size - 1)
                   & (gain >= self.params["min_gain"]))
         best = np.where(fitted, best, cfg["zphi_alpha"])
-        a, pia, _ = zphi(z, phi, valid, seg, i0, i1, best, cfg["zphi_b"], dr, self.params["min_dphi"])
+        a, pia, _ = zphi(z, phi, valid, seg, i0, i1, best, cfg["zphi_b"], dr, self.params["min_dphi"], prof=_prof(ds))
         extra = {"ALPHA": (("azimuth",), best.astype("float32"), {"units": "dB/deg", "long_name": "per-ray A/KDP ratio"}),
                  "ALPHA_FITTED": (("azimuth",), fitted, {"long_name": "alpha fitted (True) or band default (False)"})}
         return apply(ds, pia, cfg, best, "Bringi 2001 self-consistent", ah=a, extra=extra)
