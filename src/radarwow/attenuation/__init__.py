@@ -1,7 +1,6 @@
-"""radar-wow stage 4: attenuation correction.
+"""radar-wow stage 4: attenuation and differential attenuation correction (rain)."""
 
-Planned algorithms (see README): Testud2000ZPHI, Bringi2001SelfConsistent, LinearPhiAttenuation.
-"""
+from .methods import Bringi2001SelfConsistent, LinearPhiAttenuation, Testud2000ZPHI, zphi
+from .testing import synthetic_attenuated_sweep
 
-PLANNED = ['Testud2000ZPHI', 'Bringi2001SelfConsistent', 'LinearPhiAttenuation']
-__all__: list[str] = []
+__all__ = ["Bringi2001SelfConsistent", "LinearPhiAttenuation", "Testud2000ZPHI", "synthetic_attenuated_sweep", "zphi"]
