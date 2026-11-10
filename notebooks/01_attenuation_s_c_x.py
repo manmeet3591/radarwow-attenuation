@@ -27,7 +27,7 @@
 
 # %%
 # Colab: uncomment to install
-# !pip install -q "git+https://github.com/radar-wow/radarwow-core" "git+https://github.com/radar-wow/radarwow-kdp" "git+https://github.com/radar-wow/radarwow-attenuation"
+# !pip install -q "git+https://github.com/manmeet3591/radarwow-core" "git+https://github.com/manmeet3591/radarwow-kdp" "git+https://github.com/manmeet3591/radarwow-attenuation"
 
 # %%
 import time

@@ -2,7 +2,7 @@
 
 **radar-wow stage 4: Attenuation correction.** Path-integrated and differential attenuation in rain (critical at C and X band).
 
-Part of [radar-wow](https://github.com/radar-wow), a set of repos that together build a radar QPE system that works for S, C and X band radars.
+Part of [radar-wow](https://github.com/manmeet3591/radar-wow), a set of repos that together build a radar QPE system that works for S, C and X band radars.
 Every algorithm is one class implementing one paper, with the same interface: it takes an xradar sweep or volume with canonical moment names, declares the bands and moments it needs, and records provenance.
 
 ## Sub-components
@@ -18,12 +18,12 @@ Every algorithm is one class implementing one paper, with the same interface: it
 ## Install
 
 ```bash
-pip install git+https://github.com/radar-wow/radarwow-core git+https://github.com/radar-wow/radarwow-attenuation
+pip install git+https://github.com/manmeet3591/radarwow-core git+https://github.com/manmeet3591/radarwow-attenuation
 ```
 
 ## Notebooks (free data, S / C / X band)
 
-- [`notebooks/01_attenuation_s_c_x.ipynb`](notebooks/01_attenuation_s_c_x.ipynb): open in Colab via `https://colab.research.google.com/github/radar-wow/radarwow-attenuation/blob/main/notebooks/01_attenuation_s_c_x.ipynb`
+- [`notebooks/01_attenuation_s_c_x.ipynb`](notebooks/01_attenuation_s_c_x.ipynb): open in Colab via `https://colab.research.google.com/github/manmeet3591/radarwow-attenuation/blob/main/notebooks/01_attenuation_s_c_x.ipynb`
 
 ## Results
 
