@@ -41,3 +41,19 @@ def test_raw_kept_and_pia_monotonic():
     out = Testud2000ZPHI()(ds, band="C")
     assert np.allclose(out["DBZH_UNCORR"].values, ds["DBZH"].values, equal_nan=True)
     assert (np.diff(out["PIA"].values, axis=1) >= -1e-6).all()
+
+
+def test_inconsistent_phase_is_not_used():
+    # synthetic storm (its KDP per unit Z is ~2.5x the Marshall-Palmer expectation; real radars: 1.2-1.6):
+    # most rays pass and keep their correction
+    ds = synthetic_attenuated_sweep(alpha_true=0.08)
+    out = Testud2000ZPHI()(ds, band="C")
+    assert np.median(out["PHASE_RATIO"].values) < 10 and out["PHASE_CONSISTENT"].values.mean() > 0.95
+    # same Z, but PHIDP rising 100 deg (as on the Tablazo mountain-top radar): flagged, no correction
+    bad = ds.copy()
+    r = bad["range"].values / 1e3
+    bad["PHIDP"] = bad["PHIDP"] * 0 + 60 + 100 * r[None, :] / r.max()
+    bad["DBZH"] = bad["DBZH"].clip(max=30)
+    out = Testud2000ZPHI()(bad, band="C")
+    assert out["PHASE_CONSISTENT"].values.mean() < 0.1
+    assert float(np.nanmax(out["PIA"].values)) < 0.5

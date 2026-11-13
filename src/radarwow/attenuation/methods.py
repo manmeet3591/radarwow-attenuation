@@ -18,7 +18,7 @@ import numpy as np
 from radarwow.core import Algorithm, Reference, register
 from radarwow.core.noise import signal_mask
 
-from .common import apply, gate_km, hold_after, path_dphi, phidp_rec, rain_path
+from .common import phase_consistency, apply, gate_km, hold_after, path_dphi, phidp_rec, rain_path
 
 DIMS = ("azimuth", "range")
 
@@ -94,15 +94,23 @@ class Testud2000ZPHI(Algorithm):
     requires = ("DBZH", "PHIDP")
     optional = ("ZDR", "RHOHV", "PHIDP_REC", "height_over_iso0")
     provides = ("DBZH", "ZDR", "PIA", "PIDA", "AH")
-    notes = "Fixed alpha from the band config; A_H follows the Z profile, total PIA constrained by delta PHIDP."
-    params = dict(min_dphi=2.0)
+    notes = ("Fixed alpha from the band config; A_H follows the Z profile, total PIA constrained by delta PHIDP. Rays whose "
+             "PHIDP rise exceeds max_phase_ratio times what their Z could produce (common.phase_consistency) are not "
+             "corrected and are flagged in PHASE_CONSISTENT (R(A) skips them). 10x: heavy convective rain, where "
+             "Marshall-Palmer underestimates R and so the expected phase, reaches ~5x; Tablazo's spurious phase 18x (median).")
+    params = dict(min_dphi=2.0, max_phase_ratio=10.0)
 
     def run_sweep(self, ds, cfg):
         valid, seg, i0, i1 = rain_path(ds, cfg)
         phi = phidp_rec(ds, cfg)
+        ratio = phase_consistency(ds, cfg, valid, seg, i0, i1, phi)
+        good = ratio <= self.params["max_phase_ratio"]
+        phi = np.where(good[:, None], phi, 0.0)  # no phase rise on inconsistent rays: no correction there
         dr = gate_km(ds)
         a, pia, _ = zphi(ds["DBZH"].values, phi, valid, seg, i0, i1, cfg["zphi_alpha"], cfg["zphi_b"], dr, self.params["min_dphi"], prof=_prof(ds))
-        return apply(ds, pia, cfg, cfg["zphi_alpha"], "ZPHI", ah=a)
+        extra = {"PHASE_CONSISTENT": (("azimuth",), good, {"long_name": "ray PHIDP rise consistent with its Z (common.phase_consistency)"}),
+                 "PHASE_RATIO": (("azimuth",), ratio.astype("float32"), {"long_name": "measured / Z-expected delta PHIDP"})}
+        return apply(ds, pia, cfg, cfg["zphi_alpha"], "ZPHI", ah=a, extra=extra)
 
 
 @register

@@ -45,6 +45,26 @@ def path_dphi(phi, i0, i1):
     return np.where(i1 >= i0, np.nan_to_num(d), 0.0)
 
 
+def phase_consistency(ds, cfg, valid, seg, i0, i1, phi, min_dphi: float = 5.0):
+    """Per ray, measured delta PHIDP over the rain path divided by the delta PHIDP the measured Z could produce.
+
+    Expected phase: R from Z (Marshall-Palmer, Z capped at 53 dBZ), then KDP from R by inverting the band's R(KDP)
+    relation (radarwow.estimation.coefficients.RKDP), integrated along the rain gates (two-way). A self-consistency
+    test in the spirit of Bringi et al. 2001. Typical medians: 1.2-1.6 on NEXRAD KTLX/KDAX and FMI fianj; 18 on the
+    Tablazo (Colombia) mountain-top radar, whose PHIDP rose 40-110 deg through 25-35 dBZ rain. Rays with less than
+    ``min_dphi`` of measured span get ratio 1 (too little phase to judge)."""
+    from radarwow.estimation import coefficients as co
+
+    band = cfg.band.value
+    z = np.where(valid & seg, 10 ** (0.1 * np.minimum(ds["DBZH"].values.astype(float), 53.0)), 0.0)
+    rz = (z / 200.0) ** (1 / 1.6)
+    p = co.RKDP[band]
+    kexp = (rz / p["c"]) ** (1 / p["d"])
+    dexp = 2 * np.nansum(np.where(valid & seg, kexp, 0.0), axis=1) * gate_km(ds)
+    dphi = path_dphi(phi, i0, i1)
+    return np.where(dphi >= min_dphi, dphi / np.maximum(dexp, 0.5), 1.0)
+
+
 def hold_after(x, i1):
     """Keep x constant beyond the last rain gate of each ray (PIA does not decrease)."""
     out = x.copy()

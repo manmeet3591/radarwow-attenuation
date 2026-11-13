@@ -12,6 +12,7 @@ Every algorithm is one class implementing one paper, with the same interface: it
 | linear A = alpha KDP | `LinearPhiAttenuation` | baseline: PIA = alpha PHIDP, alpha per band in `core/bands/*.toml` |  | implemented + notebook |
 | ZPHI (PHIDP-constrained) | `Testud2000ZPHI` | Testud et al. 2000, JTECH | [doi:10.1175/1520-0426(2000)017<0332:TRPAAT>2.0.CO;2](https://doi.org/10.1175/1520-0426(2000)017<0332:TRPAAT>2.0.CO;2) | implemented + notebook |
 | self-consistent alpha per ray | `Bringi2001SelfConsistent` | Bringi, Keenan & Chandrasekar 2001, IEEE TGRS | [doi:10.1109/36.951081](https://doi.org/10.1109/36.951081) | implemented + notebook |
+| ray PHIDP consistency with Z (skip spurious phase) | `phase_consistency` | in the spirit of Bringi et al. 2001; radar-wow test, 10x threshold |  | implemented + notebook |
 | ZDR constraint for beta | - | Bringi, Keenan & Chandrasekar 2001 | [doi:10.1109/36.951081](https://doi.org/10.1109/36.951081) | planned |
 | hail / melting-layer attenuation, wet radome | - | see survey/02 |  | to review |
 
